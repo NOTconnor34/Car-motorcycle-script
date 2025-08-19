@@ -1,0 +1,129 @@
+local player = game.Players.LocalPlayer
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+local frame = Instance.new("Frame", gui)
+local textLabel = Instance.new("TextLabel", frame)
+
+frame.Size = UDim2.new(0, 300, 0, 50)
+frame.Position = UDim2.new(0.5, -150, 0, -60)
+frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+frame.BackgroundTransparency = 0.5
+frame.BorderSizePixel = 0
+
+textLabel.Size = UDim2.new(1, 0, 1, 0)
+textLabel.Text = "Motorcycle made by connor34!"
+textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+textLabel.TextScaled = true
+textLabel.BackgroundTransparency = 1
+
+local tweenService = game:GetService("TweenService")
+local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+
+local enterTween = tweenService:Create(frame, tweenInfo, {Position = UDim2.new(0.5, -150, 0, 20)})
+enterTween:Play()
+
+task.wait(3)
+
+local fadeTween = tweenService:Create(frame, TweenInfo.new(1), {BackgroundTransparency = 1})
+local textFadeTween = tweenService:Create(textLabel, TweenInfo.new(1), {TextTransparency = 1})
+
+fadeTween:Play()
+textFadeTween:Play()
+
+task.wait(1)
+gui:Destroy()
+
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:FindFirstChildOfClass("Humanoid")
+local rootPart = character:FindFirstChild("HumanoidRootPart")
+
+if humanoid and rootPart then
+    local bike = Instance.new("Model", workspace)
+    bike.Name = "Motorcycle"
+
+    local bikePart = Instance.new("Part", bike)
+    bikePart.Size = Vector3.new(4, 5, 5)
+    bikePart.Position = rootPart.Position
+    bikePart.Anchored = false
+    bikePart.CanCollide = true
+    bikePart.Transparency = 1
+    bikePart.Name = "BikeBody"
+
+    local weld = Instance.new("Weld", bikePart)
+    weld.Part0 = bikePart
+    weld.Part1 = rootPart
+
+    humanoid.Sit = true
+    humanoid.HipHeight = 0
+
+    local UserInputService = game:GetService("UserInputService")
+    local runService = game:GetService("RunService")
+    local speed = 0
+    local maxSpeed = 20
+    local acceleration = 2
+    local deceleration = 1
+    local turnSpeed = 2
+    local tiltAmount = 1.5
+    local isFlipping = false
+
+    local function isFlipped(part)
+        return part.CFrame.UpVector.Y < 0.2
+    end
+
+    local function flipUpright()
+        if isFlipping then return end
+        isFlipping = true
+
+        local currentCFrame = bikePart.CFrame
+        local _, yaw, _ = currentCFrame:ToEulerAnglesYXZ()
+        local uprightCFrame = CFrame.new(currentCFrame.Position) * CFrame.Angles(0, yaw, 0)
+
+        local duration = 0.5
+        local elapsed = 0
+
+        runService:BindToRenderStep("FlipBike", Enum.RenderPriority.Character.Value + 1, function(dt)
+            elapsed += dt
+            local alpha = math.clamp(elapsed / duration, 0, 1)
+            bikePart.CFrame = currentCFrame:Lerp(uprightCFrame, alpha)
+            if alpha >= 1 then
+                runService:UnbindFromRenderStep("FlipBike")
+                isFlipping = false
+            end
+        end)
+    end
+
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        if input.KeyCode == Enum.KeyCode.R and isFlipped(bikePart) then
+            flipUpright()
+        end
+    end)
+
+    runService.RenderStepped:Connect(function()
+        if humanoid.Sit then
+            local moveDirection = Vector3.new(0, 0, 0)
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                speed = math.min(speed + acceleration, maxSpeed)
+            elseif UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                speed = math.max(speed - acceleration, -maxSpeed / 2)
+            else
+                speed = speed * (1 - deceleration * 0.01)
+            end
+
+            local tilt = 0
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                bikePart.CFrame = bikePart.CFrame * CFrame.Angles(0, math.rad(turnSpeed), 0)
+                tilt = -tiltAmount
+            elseif UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                bikePart.CFrame = bikePart.CFrame * CFrame.Angles(0, math.rad(-turnSpeed), 0)
+                tilt = tiltAmount
+            end
+
+            bikePart.CFrame = bikePart.CFrame * CFrame.Angles(0, 0, math.rad(tilt))
+
+            local lookVector = bikePart.CFrame.LookVector
+            moveDirection = Vector3.new(lookVector.X * speed, 0, lookVector.Z * speed)
+            bikePart.Velocity = Vector3.new(moveDirection.X, 0, moveDirection.Z)
+        end
+    end)
+end
